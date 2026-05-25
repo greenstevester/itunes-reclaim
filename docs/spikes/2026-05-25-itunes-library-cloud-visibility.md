@@ -49,7 +49,7 @@ all-`.file` result is correct behaviour, not a framework limitation.
 
 ### Real lost-purchase case found
 "Kontor Sunset Chill 2019: Winter Edition" (Various Artists; purchased
-13 Jan 2019; invoice MMZDG10557) is **entirely absent** from the library —
+13 Jan 2019; order ID redacted) is **entirely absent** from the library —
 confirmed both in Music.app and by the probe (0 items match "sunset chill
 2019"). This is the **deep-scan** case (purchase gone from the library), not the
 instant-scan (cloud-only) case.
