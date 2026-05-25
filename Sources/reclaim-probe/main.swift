@@ -1,5 +1,6 @@
 import Foundation
 import iTunesLibrary
+import ReclaimCore
 
 let library: ITLibrary
 do {
@@ -23,8 +24,55 @@ func locName(_ t: ITLibMediaItemLocationType) -> String {
     }
 }
 
+// A miniature preview of Phase 2's LibraryReader: maps the framework's
+// ITLibMediaItem onto ReclaimCore.LibraryItem. isDownloaded derives from a
+// present local file (the spike confirmed `location != nil` is the usable
+// signal on this library; revalidate on a Sync Library library in Phase 2).
+func toLibraryItem(_ s: ITLibMediaItem) -> LibraryItem {
+    LibraryItem(
+        title: s.title,
+        artist: s.artist?.name ?? "",
+        album: s.album.title ?? "",
+        albumArtist: s.album.albumArtist ?? "",
+        trackNumber: s.trackNumber > 0 ? s.trackNumber : nil,
+        persistentID: s.persistentID.stringValue,
+        kind: s.kind ?? "",
+        isDownloaded: s.location != nil
+    )
+}
+
 let all = library.allMediaItems
 let songs = all.filter { $0.mediaKind == .kindSong }
+
+// Reconcile-demo mode: if a .csv path is passed, treat it as a purchases export,
+// reconcile it against the real library via ReclaimCore, print the buckets, and
+// exit. This is the Phase 1 beta-tester-#1 validation against real data.
+if let csvPath = CommandLine.arguments.dropFirst().first(
+    where: { $0.hasSuffix(".csv") && FileManager.default.fileExists(atPath: $0) }
+) {
+    guard let csvText = try? String(contentsOfFile: csvPath, encoding: .utf8) else {
+        FileHandle.standardError.write(Data("could not read \(csvPath)\n".utf8)); exit(1)
+    }
+    let libraryItems = songs.map(toLibraryItem)
+    let purchases: [PurchasedItem]
+    do { purchases = try importPurchases(csv: csvText) }
+    catch { FileHandle.standardError.write(Data("import failed: \(error)\n".utf8)); exit(1) }
+
+    let results = Reconciler().reconcile(purchases: purchases, library: libraryItems)
+    print("=== reconcile: \(purchases.count) purchases vs \(libraryItems.count) library songs ===")
+    for r in results {
+        let p = r.purchase
+        let albumPart = p.album.isEmpty ? "" : " [\(p.album)]"
+        let matchPart = r.matchedPersistentID.map { " → matched library id \($0)" } ?? ""
+        print("  [\(r.bucket.rawValue.uppercased())] \(p.artist) — \(p.title)\(albumPart)\(matchPart)")
+    }
+    print("--- album rollup ---")
+    for rep in rollupByAlbum(results) {
+        let albumName = rep.album.isEmpty ? "(no album given)" : rep.album
+        print("  [\(rep.status.rawValue)] \(rep.artist) — \(albumName)  (\(rep.results.count) track(s))")
+    }
+    exit(0)
+}
 
 var byLocationType: [String: Int] = [:]
 var cloud = 0, purchased = 0, drm = 0
