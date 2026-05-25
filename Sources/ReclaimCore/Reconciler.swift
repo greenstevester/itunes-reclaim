@@ -33,3 +33,30 @@ public struct Reconciler {
         }
     }
 }
+
+/// Groups results by normalized (artist, album) and assigns an album-level status.
+/// Report order follows first appearance of each album in `results`.
+public func rollupByAlbum(_ results: [ReconResult]) -> [AlbumReport] {
+    var order: [String] = []
+    var groups: [String: [ReconResult]] = [:]
+    for r in results {
+        let key = "\(normalize(r.purchase.artist))|\(normalize(r.purchase.album))"
+        if groups[key] == nil { order.append(key) }
+        groups[key, default: []].append(r)
+    }
+    return order.map { key in
+        let group = groups[key]!
+        let status: AlbumStatus
+        if group.allSatisfy({ $0.bucket == .downloaded }) {
+            status = .fullyDownloaded
+        } else if group.allSatisfy({ $0.bucket == .missing }) {
+            status = .fullyMissing
+        } else {
+            status = .partiallyDownloaded
+        }
+        return AlbumReport(artist: group[0].purchase.artist,
+                           album: group[0].purchase.album,
+                           status: status,
+                           results: group)
+    }
+}

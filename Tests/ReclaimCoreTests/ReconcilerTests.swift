@@ -60,3 +60,32 @@ final class ReconcilerTests: XCTestCase {
         XCTAssertEqual(r[0].matchedPersistentID, "local")
     }
 }
+
+final class AlbumRollupTests: XCTestCase {
+    private func result(_ title: String, _ album: String, _ bucket: Bucket) -> ReconResult {
+        ReconResult(purchase: PurchasedItem(title: title, artist: "Band", album: album),
+                    bucket: bucket, matchedPersistentID: nil)
+    }
+
+    func testFullyDownloaded() {
+        let reports = rollupByAlbum([result("T1", "Rec", .downloaded), result("T2", "Rec", .downloaded)])
+        XCTAssertEqual(reports.count, 1)
+        XCTAssertEqual(reports[0].status, .fullyDownloaded)
+        XCTAssertEqual(reports[0].album, "Rec")
+    }
+
+    func testFullyMissing() {
+        let reports = rollupByAlbum([result("T1", "Rec", .missing), result("T2", "Rec", .missing)])
+        XCTAssertEqual(reports[0].status, .fullyMissing)
+    }
+
+    func testPartiallyDownloaded() {
+        let reports = rollupByAlbum([result("T1", "Rec", .downloaded), result("T2", "Rec", .cloudOnly)])
+        XCTAssertEqual(reports[0].status, .partiallyDownloaded)
+    }
+
+    func testGroupsSeparateAlbums() {
+        let reports = rollupByAlbum([result("T1", "Rec A", .downloaded), result("T2", "Rec B", .missing)])
+        XCTAssertEqual(reports.count, 2)
+    }
+}
